@@ -9,6 +9,7 @@ import { AuthError } from "next-auth";
 import { generateVerificationToken } from "@/lib/tokens";
 import { getUserByEmail } from "@/data/user";
 import { getVerificationTokenByEmail } from "@/data/verification-token";
+import { sendVerificationEmail } from "@/lib/mail";
 
 export const login = async (values: z.infer<typeof LoginSchema>) => {
 	const validatedField = LoginSchema.safeParse(values);
@@ -24,13 +25,20 @@ export const login = async (values: z.infer<typeof LoginSchema>) => {
 	if (!existingUser || !existingUser.email || !existingUser.password) {
 		return { error: "Email does not exist!" };
 	}
+
 	if (!existingUser.emailVerified) {
 		const verificationToken = await generateVerificationToken(
 			existingUser.email,
 		);
 
+		await sendVerificationEmail(
+			verificationToken.email,
+			verificationToken.token,
+		);
+
 		return { success: "Confirmation email sent!" };
 	}
+
 	try {
 		await signIn("credentials", {
 			email,
