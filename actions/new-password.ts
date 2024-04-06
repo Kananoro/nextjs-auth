@@ -1,14 +1,32 @@
 "use server";
 
+import * as z from "zod";
+import bcrypt from "bcryptjs";
+import { NewPasswordSchema } from "@/schemas";
+import { getPasswordResetTokenByToken } from "@/data/password-reset-token";
 import { getUserByEmail } from "@/data/user";
 import { db } from "@/lib/db";
-import { getPasswordResetTokenByToken } from "@/data/password-reset-token";
 
-export const newVerification = async (token: string) => {
+export const newPassword = async (
+	values: z.infer<typeof NewPasswordSchema>,
+	token?: string | null,
+) => {
+	if (!token) {
+		return { error: "Token does not exist!" };
+	}
+
+	const validatedFields = NewPasswordSchema.safeParse(values);
+
+	if (!validatedFields.success) {
+		return { error: "Invalid Fields" };
+	}
+
+	const { password } = validatedFields.data;
+
 	const existingToken = await getPasswordResetTokenByToken(token);
 
 	if (!existingToken) {
-		return { error: "Token does not exist!" };
+		return { error: "Invalid token!" };
 	}
 
 	const hasExpired = new Date(existingToken.expires) < new Date();
@@ -20,20 +38,23 @@ export const newVerification = async (token: string) => {
 	const existingUser = await getUserByEmail(existingToken.email);
 
 	if (!existingUser) {
-		return { error: "Email does not exist" };
+		return { error: "User odes not exist" };
 	}
 
+	const hashedPassword = await bcrypt.hash(password, 10);
+
 	await db.user.update({
-		where: { id: existingUser.id },
-		data: {
-			emailVerified: new Date(),
-			email: existingToken.email,
+		where: {
+			id: existingUser.id,
 		},
+		data: { password: hashedPassword },
 	});
-	await db.verificationToken.delete({
+
+	await db.passwordResetToken.delete({
 		where: {
 			id: existingToken.id,
 		},
 	});
-	return { success: "Email verified!" };
+
+	return { success: "Password updated!" };
 };
