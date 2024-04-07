@@ -9,7 +9,7 @@ import { getUserByEmail } from "@/data/user";
 export const reset = async (values: z.infer<typeof ResetSchema>) => {
 	const validatedFields = ResetSchema.safeParse(values);
 
-	if (!validatedFields) {
+	if (!validatedFields.success) {
 		return { error: "Invalid Email!" };
 	}
 
